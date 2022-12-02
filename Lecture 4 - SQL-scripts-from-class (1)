@@ -1,0 +1,338 @@
+-- NOTE THAT THESE SCRIPTS ASSUME THAT THE UCL FACILITIES MANAGEMENT EXAMPLE HAS BEEN CREATED AND POPULATED WITH DATA 
+
+-- THE SELECT STATEMENT
+-- select all data
+select * from assets.cleaner;
+
+-- select individual fields
+SELECT room_number, room_use from assets.rooms;
+
+-- using the WHERE clause
+-- a LIKE statement
+select * from assets.cleaner where 	cleaner_surname like 'B%';
+
+-- WHERE clauses variations
+select * from assets.cleaner where cleaner_surname like 'b%';
+
+
+select * from assets.cleaner where cleaner_surname like '%r%';
+
+-- which windows were installed after 1969
+select * from assets.windows where window_installation_date > '1-Jan-1970'
+
+
+-- combined WHERE clause
+SELECT * FROM assets.rooms where room_number like '1%'
+
+SELECT * FROM assets.rooms
+where room_number like '1%' 
+And last_repainted > '1-Jan-2000'
+and room_use = 'classroom';
+
+-- finding the number of records
+select count(*) from assets.buildings;
+
+-- using an ALIAS
+select count(*) from assets.cleaner;
+
+select count(*) as num_cleaners from assets.cleaner;
+
+-------
+------  GROUPS AND AGGREGATES
+
+-- windows that were installed the earliest
+select min(window_installation_date) as oldest_window from assets.windows;
+
+
+-- highest temperature
+select max(value_degrees_c)
+from assets.temperature_values;
+
+
+-- average temperature at UCL
+select avg(temperature_degrees_c) from assets.room_temperature_values;
+
+-- total area of rooms on campus
+select sum(st_area(location))
+from assets.rooms;
+
+-- NUMBER OF CLASSROOMS OF EACH TYPE - without group by
+select count(*) as num_rooms 
+from assets.rooms where room_use = 'classroom';
+
+select count(*) as num_rooms 
+from assets.rooms where room_use = 'kitchen';
+
+select count(*) as num_rooms 
+from assets.rooms where room_use = 'other';
+
+select count(*) as num_rooms 
+from assets.rooms where room_use = 'engineering lab';
+
+select count(*) as num_rooms 
+from assets.rooms where room_use = 'computer lab';
+
+
+-- NUMBER OF CLASSROOMS OF EACH TYPE - with group by
+select count(*) as num_rooms, room_use
+from assets.rooms
+group by room_use;
+
+-- do any of the rooms in different buildings have the same room number
+
+select count(*) as num_rooms, room_number 
+from assets.rooms
+group by room_number;
+
+-- what is the average temperature for each sensor
+select avg(value_degrees_c), temperature_sensor_id from assets.temperature_values
+group by temperature_sensor_id;
+
+-- ORDER BY
+-- list the cleaners in alphabetical order
+select * from assets.cleaner order by cleaner_surname, cleaner_name;
+
+-- list the cleaners in reverse order
+select * from assets.cleaner order by 	(cleaner_surname, cleaner_name) desc;
+
+-- what happens when you remove the brackets
+select * from assets.cleaner order by 	cleaner_surname, cleaner_name desc;
+
+-- DISTINCT
+-- without distinct
+SELECT date_and_time
+	from assets.temperature_values;
+
+
+-- with distinct
+SELECT DISTINCT date_and_time 
+	from assets.temperature_values;
+
+
+
+-- DISTINCT ON
+-- find the first time each temperature value was measured
+-- without distinct on
+SELECT  value_degrees_c, date_and_time
+	from assets.temperature_values
+	order by value_degrees_c, date_and_time;
+
+-- with distinct on
+SELECT DISTINCT on(value_degrees_c) value_degrees_c, date_and_time
+	from assets.temperature_values
+	order by value_degrees_c, date_and_time;
+
+
+
+
+-- SUB QUERIES
+-- nested queries
+-- find the ID of the PEARSON building
+select building_id from assets.buildings where building_name = 'Pearson';
+
+-- then use this to find the windows in the Pearson building
+select * from assets.windows where building_id = (select building_id from assets.buildings where building_name = 'Pearson');
+
+-- find the maximum window install date
+select max(window_installation_date) from assets.windows;
+
+-- now find out which window it actually is
+select * from assets.windows where window_installation_date = (select max(window_installation_date) from assets.windows);
+
+
+-- ADDITIONAL EXAMPLES
+
+-- multiple nested query
+-- which building is the newest window installed on
+select * from assets.buildings where building_id = (select building_id from assets.windows where window_installation_date = (select max(window_installation_date) from assets.windows));
+
+-- when did the maximum temperature reading occur
+select date_and_time from assets.temperature_values
+where value_degrees_c = (select max(value_degrees_c) from assets.temperature_values);
+
+-- what room was the minimum temperature recorded in
+select room_number from assets.rooms
+where room_id = (
+select room_id from assets.temperature_sensor
+where sensor_id = (
+select temperature_sensor_id from assets.temperature_values
+where value_degrees_c = (select min(value_degrees_c) from assets.temperature_values)));
+
+
+
+-- an alternative way to run a nested query
+-- the WITH statement
+with maxwin as (select max(window_installation_date) as maxw from assets.windows) 
+select * from assets.windows where window_installation_date = (select maxw from maxwin);
+
+-- SET QUERIES
+
+-- cartesian product
+select a.*,b.*
+from assets.buildings a, assets.windows b;
+
+
+-- union - find all the locations in UCL 
+select university_name from assets.university
+union all
+select building_name from assets.buildings
+union all
+select room_number from assets.rooms;
+
+
+
+-- DIFFERENCE which rooms don't have temperature sensors
+select room_id from assets.rooms
+	except
+	select room_id from assets.temperature_sensor;
+
+-- DIFFERENCE and NESTED QUERY - more details about the rooms
+select * from assets.rooms
+	where room_id in 
+	(select room_id from assets.rooms
+	except
+	select room_id from assets.temperature_sensor);
+
+-- DIFFERENCE - which rooms DO have sensors
+select * from assets.rooms
+	where room_id in 
+	(select room_id from assets.rooms
+	intersect
+	select room_id from assets.temperature_sensor);
+
+-- --------------
+-- JOINS
+
+-- INNER JOIN - all rooms and buildings
+select a.*, b.*
+from assets.rooms a INNER JOIN assets.buildings b
+on a.building_id = b.building_id;
+
+-- INNER JOIN - all rooms with windows
+select a.*, b.*
+from assets.rooms a INNER JOIN assets.windows b
+on a.room_id = b.room_id;
+
+
+-- LEFT JOIN - all rooms and windows (including rooms without windows)
+select a.*, b.*
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id;
+
+-- LEFT JOIN - all windows and rooms (including windows without rooms)
+select a.*, b.*
+from assets.windows a LEFT JOIN assets.rooms b
+on a.room_id = b.room_id;
+
+
+-- LEFT JOIN - list of rooms and sensors
+-- rooms with and without sensors
+select a.*, b.*
+from assets.rooms a LEFT JOIN assets.temperature_sensor b
+on a.room_id = b.room_id;
+
+
+-- LEFT JOIN - list of sensors without rooms
+select a.*, b.*
+from assets.temperature_sensor a LEFT JOIN assets.rooms b  on a.room_id = b.room_id;
+
+-- FULL OUTER
+-- which sensors are in / out of rooms, which rooms have/don't have sensors
+select a.*, b.*
+from assets.temperature_sensor a FULL JOIN assets.rooms b
+on a.room_id = b.room_id;
+
+
+-- MULTIPLE JOINS
+-- are rooms with windows hotter than rooms without windows?
+
+-- start with finding out the relationship between rooms and windows
+
+select a.room_id, b.window_id 
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id;
+
+-- find the temperature of these rooms
+select c.sensor_id, d.room_id, d.window_id from assets.temperature_sensor c INNER JOIN (select a.room_id, b.window_id 
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id) d
+on c.room_id = d.room_id;
+
+-- find the temperature readings for these sensors
+select f.*, e.sensor_id, e.room_id, e.window_id
+from assets.temperature_values f INNER JOIN
+(select c.sensor_id, d.room_id, d.window_id from assets.temperature_sensor c INNER JOIN (select a.room_id, b.window_id 
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id) d
+on c.room_id = d.room_id) e
+on f.temperature_sensor_id = e.sensor_id;
+
+-- finally what is the average reading from these sensors
+select g.room_id,g.window_id,avg(g.value_degrees_c) from
+(select f.*, e.sensor_id, e.room_id, e.window_id
+from assets.temperature_values f INNER JOIN
+(select c.sensor_id, d.room_id, d.window_id from assets.temperature_sensor c INNER JOIN (select a.room_id, b.window_id 
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id) d
+on c.room_id = d.room_id) e
+on f.temperature_sensor_id = e.sensor_id) g
+group by g.room_id, g.window_id;
+
+-- MULTIPLE JOINS WITH THE WITH STATEMENT
+-- start with finding out the relationship between rooms and windows
+WITH rooms_windows as (select a.room_id, b.window_id 
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id) 
+select * from rooms_windows;
+
+
+-- find the temperature of these rooms
+WITH rooms_windows as (select a.room_id, b.window_id 
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id) 
+
+select c.sensor_id, d.room_id, d.window_id from assets.temperature_sensor c INNER JOIN rooms_windows d
+on c.room_id = d.room_id;
+
+
+-- find the temperature readings for these sensors
+WITH temperature_rooms_windows as (WITH rooms_windows as (select a.room_id, b.window_id 
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id) 
+select c.sensor_id, d.room_id, d.window_id from assets.temperature_sensor c INNER JOIN rooms_windows d on c.room_id = d.room_id )
+
+select f.*, e.sensor_id, e.room_id, e.window_id
+from assets.temperature_values f INNER JOIN
+temperature_rooms_windows e
+on f.temperature_sensor_id = e.sensor_id;
+
+-- a better alternative - stack the WITH statements
+WITH 
+rooms_windows as (select a.room_id, b.window_id 
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id),
+temperature_rooms_windows as (select c.sensor_id, d.room_id, d.window_id 
+from assets.temperature_sensor c INNER JOIN rooms_windows d on c.room_id = d.room_id)
+
+select f.*, e.sensor_id, e.room_id, e.window_id
+from assets.temperature_values f INNER JOIN
+temperature_rooms_windows e
+on f.temperature_sensor_id = e.sensor_id;
+
+
+-- finally what is the average reading from these sensors
+
+WITH
+rooms_windows as (select a.room_id, b.window_id 
+from assets.rooms a LEFT JOIN assets.windows b
+on a.room_id = b.room_id),
+temperature_rooms_windows as (select c.sensor_id, d.room_id, d.window_id 
+from assets.temperature_sensor c INNER JOIN rooms_windows d on c.room_id = d.room_id),
+temperature_sensor_rooms as (select f.*, e.sensor_id, e.room_id, e.window_id
+from assets.temperature_values f INNER JOIN
+temperature_rooms_windows e
+on f.temperature_sensor_id = e.sensor_id)
+
+select g.room_id,g.window_id,avg(g.value_degrees_c) from
+temperature_sensor_rooms g
+group by g.room_id, g.window_id;

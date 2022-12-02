@@ -1,0 +1,222 @@
+https://powcoder.com
+代写代考加微信 powcoder
+Assignment Project Exam Help
+Add WeChat powcoder
+https://powcoder.com
+代写代考加微信 powcoder
+Assignment Project Exam Help
+Add WeChat powcoder
+-- CREATE THE SCHEMA
+
+DROP SCHEMA IF EXISTS assetsclass cascade;
+CREATE SCHEMA assetsclass;
+
+-- CREATE TABLE
+
+drop table if exists assetsclass.university;
+create table assetsclass.university (
+	university_id serial,
+	university_name character varying (100),
+	year_founded integer,
+	founders_name character varying (100));
+
+DROP TABLE IF EXISTS assetsclass.buildings;
+create table assetsclass.buildings (
+	building_id serial,
+	building_name character varying (200) NOT NULL,
+	university_id integer NOT NULL
+);
+
+
+DROP TABLE IF EXISTS assetsclass.rooms;
+create table assetsclass.rooms (
+	room_id serial,
+	floor integer NOT NULL,
+	last_repainted date NOT NULL,
+	building_id integer NOT NULL,
+	room_use character varying(50) NOT NULL,
+	room_number character varying (50) NOT NULL
+);
+
+DROP TABLE IF EXISTS assetsclass.noise;
+CREATE TABLE assetsclass.noise (
+noise_in_dB numeric(5,2),
+date_and_time date);
+
+
+drop table if exists assetsclass.windows;
+create table assetsclass.windows (
+	window_id serial,
+	building_id integer,
+	window_type character varying(100),
+	window_installation_date date,
+	room_id integer,
+	floor integer
+);
+
+drop table if exists assetsclass.cleaner;
+create table assetsclass.cleaner (
+	cleaner_id serial,
+	cleaner_name character varying (100),
+	cleaner_surname character varying (100),
+	date_of_birth date,
+	contact_number character varying (100)
+	);
+
+-- ALTER TABLE
+
+ALTER TABLE assetsclass.buildings add number_of_inhabitants integer;
+
+ALTER TABLE assetsclass.buildings drop 
+column number_of_inhabitants;
+
+
+--- CONSTRAINTS
+
+alter table assetsclass.buildings add CONSTRAINT buildings_pk PRIMARY KEY (building_id);
+
+alter table assetsclass.university add CONSTRAINT university_pk
+PRIMARY KEY (university_id);
+
+
+alter table assetsclass.buildings
+add constraint buildings_university_fk
+foreign key(university_id) references
+assetsclass.university(university_id);
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-- Note: error below deliberate for illusration - should not be present in your assignment script which should run as one script
+
+alter table assetsclass.windows
+add constraint windows_rooms_fk
+foreign key(room_id) references
+assetsclass.rooms(room_id);
+
+
+-- gives you this error:
+-- there is no unique constraint matching given keys for referenced table "rooms"
+
+-- add the required primary key first
+alter table assetsclass.rooms add CONSTRAINT rooms_pk PRIMARY KEY (room_id);
+
+-- then rerun the foreign key constraint
+alter table assetsclass.windows
+add constraint windows_rooms_fk
+foreign key(room_id) references
+assetsclass.rooms(room_id);
+
+
+-- OTHER CONSTRAINT TYPES
+alter table assetsclass.windows
+add constraint window_type_check
+check (window_type in ('single glazed','double glazed','triple glazed'));
+
+
+alter table assetsclass.cleaner
+add constraint cleaners_unique
+unique(cleaner_name, cleaner_surname, date_of_birth);
+
+----------------------
+--- DML - INSERT UPDATE AND DELETE DATA
+
+insert into assetsclass.university(university_name,year_founded,founders_name)
+values ('UCL','1826','Jeremy Bentham');
+
+
+-- ERROR BELOW IS DELIBERATE FOR ILLUSTRATION ONLY
+
+-- how a SERIAL works
+-- find all the data currently in the university table
+select * from assetsclass.university;
+
+
+-- now insert a row with a deliberate error
+insert into assetsclass.university(university_name,year_founded,founders_name)
+values ('UCL Stratford', '2017','Jeremy Benthom');
+
+
+-- fix the error by deleting the row
+delete from assetsclass.university where founders_name = 'Jeremy Benthom';
+
+-- reinsert the data
+insert into assetsclass.university(university_name,year_founded,founders_name)
+values ('UCL Stratford', '2017', 'Jeremy Bentham');
+
+
+-- look at all the data again - what has happend to the SERIAL value?
+select * from assetsclass.university;
+
+
+-- general form of the query to find an ID value
+select university_id from assetsclass.university where university_name = 'UCL';
+
+-- embedding this into the insert statement
+insert into assetsclass.buildings (building_name, university_id)
+values ('Chadwick', (select university_id from assetsclass.university where university_name = 'UCL'));
+insert into assetsclass.buildings (building_name, university_id)
+values ('Parson', (select university_id from assetsclass.university where university_name = 'UCL')); 
+
+
+
+-- multiple insert statements
+insert into assetsclass.windows(building_id, window_type, window_installation_date, room_id, floor)
+values
+((select building_id from assetsclass.buildings where building_name = 'Chadwick'), 'triple glazed','23-May-2014',null,1),
+((select building_id from assetsclass.buildings where building_name = 'Chadwick'), 'triple glazed','23-May-2014',null,1),
+((select building_id from assetsclass.buildings where building_name = 'Chadwick'), 'triple glazed','23-May-2017',null,1),
+((select building_id from assetsclass.buildings where building_name = 'Pearson'), 'triple glazed','23-May-2014',null,1),
+((select building_id from assetsclass.buildings where building_name = 'Pearson'), 'single glazed','22-May-2014',null,1),
+((select building_id from assetsclass.buildings where building_name = 'Pearson'), 'single glazed','23-May-2014',null,1);
+
+
+-- update an error value instead of deleting the row
+update assetsclass.buildings set building_name = 'Pearson'
+where building_name = 'Parson';
+
+-- insert some data into the rooms table
+insert into assetsclass.rooms
+(floor, last_repainted, building_id,
+room_use,room_number)
+values 
+(1,'12-12-2006',(select building_id from assetsclass.buildings where building_name = 'Pearson'),'kitchen','1.10');
+
+-- updating multiple columns
+update assetsclass.windows set window_installation_date = '15-Jun-2012', 
+floor = 2, room_id=(select room_id from assetsclass.rooms where room_number='1.10') where building_id = (select building_id from assetsclass.buildings where building_name = 'Chadwick');
+
+-- using the WHERE clause
+update assetsclass.windows set window_installation_date = 
+'15-Jun-2012', floor = 2, room_id=1 where building_id = 
+(select building_id from assetsclass.buildings where building_name = 'Pearson')
+ and window_installation_date = '23-May-2014' and window_type = 'single glazed';
+
+
+-- DELETE
+delete from assetsclass.university where university_name = 'UCL Stratford';
+
+
+--~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-- TRIGGER will not work on this test schema
+-- is given here for illusration
+-- not required for your assignment
+-- TRIGGERS
+
+CREATE OR REPLACE FUNCTION assetsclass.update_sensor_room_id() RETURNS trigger AS 
+$BODY$
+	DECLARE
+	originalroomid integer;
+	newroomid integer;
+     BEGIN
+	select room_id into originalroomid from assetsclass.temperature_sensor where sensor_id=NEW.sensor_id;
+	select room_id into newroomid from assetsclass.rooms a where st_contains(a.location, NEW.location);
+	raise 'Original ID: %', originalroomid;
+	raise 'New Length: %', newroomid;
+	IF NEW.room_id <> originallength THEN
+	        UPDATE assetsclass.temperature_sensor set room_id = newroomid where id = NEW.id;
+	end if;
+        RETURN NULL;
+     END;
+$BODY$ LANGUAGE 'plpgsql';
+
+
+

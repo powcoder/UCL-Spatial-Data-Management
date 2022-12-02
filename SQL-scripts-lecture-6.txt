@@ -1,0 +1,210 @@
+https://powcoder.com
+代写代考加微信 powcoder
+Assignment Project Exam Help
+Add WeChat powcoder
+https://powcoder.com
+代写代考加微信 powcoder
+Assignment Project Exam Help
+Add WeChat powcoder
+-- Spatial SQL Queries
+-- convert well known binary to well known text
+select st_astext(geom) from public.london_poi;
+
+
+-- calculate length
+SELECT ST_LENGTH(geom)
+FROM public.london_highway;
+
+-- calculate length with a transformation to get results in m
+select st_length(st_transform(geom,27700))
+From public.london_highway;
+
+-- highways intersecting with counties
+SELECT distinct A.name
+FROM public.london_counties A, public.london_highway B
+WHERE B.name = 'High Street'
+and ST_INTERSECTS(A.geom, ST_TRANSFORM(B.geom,27700)) = 't'
+
+
+-- adding a length column to the highway data
+alter table public.london_highway add column length numeric (10,2);
+
+update public.london_highway set length = st_length(st_transform(geom,27700));
+
+
+-- add the area of the county
+alter table public.London_counties add column area numeric(10,2);
+update public.london_counties set area = st_area(geom);
+
+-- find out what coordinate system your data is in
+select * from geometry_columns
+where f_table_name = 'london_counties';
+
+-- cross join highways and pois
+-- limit 1000 returns the first 1000 results
+select st_distance(a.geom,b.geom), a.id as poi_id, b.id as highway_id
+from public.london_poi a, public.london_highway b
+limit 1000;
+
+-- find the closest highway to each POI
+-- this uses:
+-- 1. order by to list the distance measurements from shortest to longest
+-- 2. then distinct on to pick the first time each POI ID occurs (which will be the ID that correspondes to the shortest distance due to the order by)
+-- in this case using LIMIT 1000 to keep the query short doesn't work, as the distance between every POI and every highway has to be worked out in order to find out which is the shortest one .. 
+-- so we limit the number of POIs being input into the query to 10
+
+select distinct on (b.id) b.id as poi_id, st_distance(b.geom_27700, s.geom_27700) as distance,  s.id as highway_id
+from (select * from public.london_poi limit 10) b , public.london_highway s
+order by b.id, st_distance(b.geom_27700, s.geom_27700)
+limit 10;
+
+select * from public.london_highway a
+
+-- list the highways in a county - non-spatial option
+select * from public.london_highway
+where county_id = (select id from 
+public.london_counties where name = 'Bromley and Chislehurst Boro Const');
+
+-- now the spatial approach
+select * from public.london_highway a
+where st_intersects(a.geom_27700,(select geom from public.london_counties where name = 'Bromley and Chislehurst Boro Const'));
+
+-- spatial approach using ST_TRANSFORM
+select * from public.london_highway a
+where st_intersects(st_transform(a.geom,27700),(select geom from public.london_counties where name = 'Bromley and Chislehurst Boro Const'));
+
+-- length of segments in each county
+select sum(st_length(st_transform(a.geom,27700))), b.name from 
+public.london_highway a, public.london_counties b
+where st_intersects(st_transform(a.geom,27700),b.geom)
+group by b.name
+
+-- distance from all the rooms to all the sensors
+select st_distance(b.location, s.location) as distance, b.room_id as room_id, s.sensor_id as sensor_id
+from assets.temperature_sensor s, assets.rooms b;
+
+-- get the sensor height
+select st_z(s.location), b.floor, st_distance(b.location, s.location) as distance, b.room_id as room_id, s.sensor_id as sensor_id
+from assets.temperature_sensor s, assets.rooms b;
+
+
+-- sensor height 2.5 gives first floor, 8.5 gives second floor
+select st_z(s.location) as height, b.floor, st_distance(b.location, s.location) as distance, b.room_id as room_id, s.sensor_id as sensor_id
+from assets.temperature_sensor s, assets.rooms b
+where (b.floor = 1 and st_z(s.location) =2.5) or (b.floor = 2 and st_z(s.location) = 8.5);
+
+-- remove the rooms that have a sensor in them
+-- option a - nested query
+select * from (select st_z(s.location) as height, b.floor, st_distance(b.location, s.location) as distance, 
+b.room_id as room_id, s.sensor_id as sensor_id from assets.temperature_sensor s, 
+assets.rooms b where (b.floor = 1 and st_z(s.location) =2.5) or (b.floor = 2 and 
+st_z(s.location) = 8.5)) f where f.room_id not in 
+(select room_id from (select st_z(s.location) as height, b.floor, st_distance(b.location, s.location) as distance, 
+b.room_id as room_id, s.sensor_id as sensor_id from assets.temperature_sensor s, assets.rooms b 
+where (b.floor = 1 and st_z(s.location) =2.5) or (b.floor = 2 and st_z(s.location) = 8.5)) g where g.distance = 0);
+
+-- remove the rooms with sensors in them
+-- option B - WITH query
+WITH roomsensors as (select st_z(s.location) as height, b.floor, st_distance(b.location, s.location) as distance, b.room_id as room_id, s.sensor_id as sensor_id
+from assets.temperature_sensor s, assets.rooms b
+where (b.floor = 1 and st_z(s.location) =2.5) or (b.floor = 2 and st_z(s.location) = 8.5) order by room_id, distance) 
+
+select * from roomsensors where room_id not in (select room_id from roomsensors where distance = 0); 
+
+-- use ORDER BY and DISTINCT ON to get the closest sensor
+WITH roomsensors as (select st_z(s.location) as height, b.floor, st_distance(b.location, s.location) as distance, b.room_id as room_id, s.sensor_id as sensor_id
+from assets.temperature_sensor s, assets.rooms b
+where (b.floor = 1 and st_z(s.location) =2.5) or (b.floor = 2 and st_z(s.location) = 8.5) order by room_id, distance) 
+select distinct on(room_id) room_id, sensor_id from roomsensors where room_id not in (select room_id from roomsensors where distance = 0) 
+order by room_id, distance;
+
+
+-- use WITH to get an average temperature for these rooms
+WITH allocatedsensors as (WITH roomsensors as (select st_z(s.location) as height, b.floor, st_distance(b.location, s.location) as distance, b.room_id as room_id, s.sensor_id as sensor_id
+from assets.temperature_sensor s, assets.rooms b
+where (b.floor = 1 and st_z(s.location) =2.5) or (b.floor = 2 and st_z(s.location) = 8.5) order by room_id, distance) 
+select distinct on(room_id) room_id, sensor_id from roomsensors where room_id not in (select room_id from roomsensors where distance = 0) 
+order by room_id, distance) 
+
+select avg(h.value_degrees_c), h.temperature_sensor_id from 
+assets.temperature_values h where temperature_sensor_id in (select sensor_id from allocatedsensors)
+group by h.temperature_sensor_id;
+
+-- link the room ID with the sensor details
+WITH allocatedsensors as (WITH roomsensors as (select st_z(s.location) as height, b.floor, st_distance(b.location, s.location) as distance, b.room_id as room_id, s.sensor_id as sensor_id
+from assets.temperature_sensor s, assets.rooms b
+where (b.floor = 1 and st_z(s.location) =2.5) or (b.floor = 2 and st_z(s.location) = 8.5) order by room_id, distance) 
+select distinct on(room_id) room_id, sensor_id from roomsensors where room_id not in (select room_id from roomsensors where distance = 0) 
+order by room_id, distance) 
+select z.room_id, p.temperature_sensor_id, p.avg_c from allocatedsensors z inner join (select avg(h.value_degrees_c) as avg_c, h.temperature_sensor_id from 
+assets.temperature_values h where temperature_sensor_id in (select sensor_id from allocatedsensors)
+-- 
+group by h.temperature_sensor_id) p on z.sensor_id = p.temperature_sensor_id;
+
+
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+-- 3D
+
+-- add a 3D geometry column onto the buildings table
+alter table assetsclass.buildings drop column if exists location;
+
+select AddGeometryColumn('assetsclass','buildings','location',0, 'geometry',3);
+
+-- constraint the geometry type to polyhedral surface
+alter table assetsclass.buildings drop column if exists location;
+
+select AddGeometryColumn('assetsclass','buildings','location',0, 'polyhedralsurface',3);
+
+-- create a table with a very generic geometry type
+create table assetsclass.osbuildings
+( id serial,
+location geometry);
+
+
+-- insert some 3D data
+insert into assetsclass.osbuildings (location) values (ST_GEOMFROMTEXT('POINT(0 0 3)',27700));
+
+insert into assetsclass.osbuildings (location) values (ST_GEOMFROMTEXT('LINESTRING(0 0 0,1 0 0,1 1 2)',27700));
+
+
+insert into assetsclass.osbuildings (location) values (ST_GEOMFROMTEXT('POLYGON((1 1 3, 1 2 3,2 2 3, 2 1 3, 1 1 3))',27700));
+
+insert into assetsclass.osbuildings (location) values (ST_GEOMFROMTEXT('MULTIPOLYGON(((0 0 0, 0 1 0, 1 1 0, 1 0 0, 0 0 0)), ((0 0 0, 0 1 0, 0 1 1, 0 0 1, 0 0 0)))',27700));
+
+
+insert into assetsclass.osbuildings (location) values (ST_GEOMFROMTEXT('POLYHEDRALSURFACE(((0 0 0, 0 1 0, 1 1 0, 1 0 0, 0 0 0)), ((0 0 0, 0 0 1, 0 1 1, 0 1 0, 0 0 0)),((0 0 0, 1 0 0, 1 0 1, 0 0 1, 0 0 0)), ((0 0 1, 1 0 1, 1 1 1, 0 1 1, 0 0 1)),((1 0 0, 1 1 0, 1 1 1, 1 0 1, 1 0 0)),((1 1 0, 0 1 0, 0 1 1, 1 1 1, 1 1 0)))',27700));
+
+-- select the data that has been inserted
+SELECT ST_ASTEXT(location) FROM assetsclass.osbuildings;
+
+
+-- validate the polyhedral surface
+   SELECT ST_Volume(location) As cube_surface_vol,
+	ST_Volume(ST_MakeSolid(location)) As solid_surface_vol
+  FROM (SELECT 'POLYHEDRALSURFACE( 
+    ((2 2 0, 2 2 12, 2 4 12, 2 4 0, 2 2 0)), 
+    ((2 2 0, 2 4 0, 4 4 0, 4 2 0, 2 2 0)),
+    ((2 2 0, 4 2 0, 4 2 12, 2 2 12, 2 2 0)),
+    ((4 4 0, 4 4 12, 4 2 12, 4 2 0, 4 4 0)),
+    ((2 4 0, 2 4 12, 4 4 12, 4 4 0, 2 4 0)),
+    ((2 2 12, 4 2 12, 4 4 12, 2 4 12, 2 2 12)) )'::geometry) As f(location);
+
+
+-- insert some data into the buildings table using the same model
+insert into assetsclass.buildings (building_name, university_id,location)
+values 
+('Chadwick', (select university_id from assetsclass.university where 
+			  university_name = 'UCL'),st_geomfromtext('POLYHEDRALSURFACE( 
+    ((3 2 0, 3 2 12, 3 22 12, 3 22 0, 3 2 0)),
+    ((3 2 0, 3 22 0, 16 22 0, 16 2 0, 3 2 0)),
+    ((3 2 0, 16 2 0, 16 2 12, 3 2 12, 3 2 0)),
+    ((16 22 0, 16 22 12, 16 2 12, 16 2 0, 16 22 0)),
+    ((3 22 0, 3 22 12, 16 22 12, 16 22 0, 3 22 0)),
+    ((3 2 12, 16 2 12, 16 22 12, 3 22 12, 3 2 12)))'));
+
+-- check that the data does form a closed solid
+select st_volume(st_makesolid(location)), 
+building_name from assetsclass.buildings
+where location is not null;
+
+

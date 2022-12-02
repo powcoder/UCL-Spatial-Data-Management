@@ -1,0 +1,901 @@
+https://powcoder.com
+代写代考加微信 powcoder
+Assignment Project Exam Help
+Add WeChat powcoder
+https://powcoder.com
+代写代考加微信 powcoder
+Assignment Project Exam Help
+Add WeChat powcoder
+-- Create the schema first
+DROP SCHEMA IF EXISTS adaptable;
+CREATE SCHEMA adaptable;
+
+-- Table: adaptable.buildings
+-- DROP TABLE adaptable.buildings;
+CREATE TABLE adaptable.buildings
+(
+  location geometry,
+  year integer,
+  source character varying(100),
+  street_segment_id integer,
+  id serial NOT NULL,
+  area double precision);
+
+
+-- set the geometry to the correct srid
+UPDATE adaptable.buildings SET location=ST_SetSRID(location,27700);
+
+select UpdateGeometrySRID('adaptable', 'buildings', 'location', 27700) ;
+
+
+-- Table: adaptable.counties
+-- DROP TABLE adaptable.counties;
+CREATE TABLE adaptable.counties
+(
+name character varying(150) NOT NULL,
+boundary geometry,
+id serial NOT NULL
+);
+
+select UpdateGeometrySRID('adaptable', 'counties', 'boundary', 27700) ;
+
+  
+ALTER TABLE adaptable.counties add population integer;
+
+ALTER TABLE adaptable.counties drop column population;
+
+
+-- Table: adaptable.non_residential_properties
+-- DROP TABLE adaptable.non_residential_properties;
+CREATE TABLE adaptable.non_residential_properties
+(
+  business_name character varying(150) NOT NULL,
+  year integer NOT NULL,
+  source character varying(150),
+  location geometry,
+  category character varying(100),
+  street_segment_id integer,
+ building_id integer,
+  id serial not null
+);
+  
+  select UpdateGeometrySRID('adaptable', 'non_residential_properties', 'location', 27700) ;
+
+
+-- Table: adaptable.street_segments
+-- DROP TABLE adaptable.street_segments;
+CREATE TABLE adaptable.street_segments
+(
+id serial NOT NULL,
+location geometry,
+length double precision
+);
+
+
+select UpdateGeometrySRID('adaptable', 'street_segments', 'location', 27700) ;
+
+    
+-- Table: adaptable.streets
+-- DROP TABLE adaptable.streets;
+CREATE TABLE adaptable.streets
+(
+town_id integer,
+name character varying(150),
+id serial NOT NULL,
+year integer,
+source character varying(100)
+);
+      
+
+-- Table: adaptable.streets
+-- DROP TABLE adaptable.streets_street_segments;
+CREATE TABLE adaptable.streets_street_segments
+(
+street_id integer,
+street_segment_id integer);
+
+      
+      
+-- Table: adaptable.town
+-- DROP TABLE adaptable.town;
+CREATE TABLE adaptable.town
+(
+name character varying(150),
+town_centre_boundary geometry,
+county_id integer,
+id serial NOT NULL
+);
+
+
+
+-- PRIMARY KEYS - nb: these must be created before the foreign keys!
+alter table adaptable.buildings add CONSTRAINT buildings_pk PRIMARY KEY (id);
+alter table adaptable.counties add CONSTRAINT county_pk PRIMARY KEY (id);
+alter table adaptable.non_residential_properties add constraint non_residential_properties_pk PRIMARY KEY(id);
+alter table adaptable.street_segments add CONSTRAINT street_segments_pk PRIMARY KEY (id);
+alter table adaptable.streets add   CONSTRAINT streets_pk PRIMARY KEY (id);
+alter table adaptable.streets_street_segments add constraint streets_street_segments_pk PRIMARY KEY(street_id, street_segment_id);
+alter table adaptable.town add    CONSTRAINT town_pk PRIMARY KEY (id);
+
+-- FOREIGN KEYS
+alter table adaptable.buildings add CONSTRAINT buildings_street_segments_fk FOREIGN KEY (street_segment_id)         REFERENCES adaptable.street_segments (id);
+alter table adaptable.non_residential_properties add  CONSTRAINT "non_residential_properties_buildings_fk" FOREIGN KEY (building_id)       REFERENCES adaptable.buildings (id);
+alter table adaptable.non_residential_properties add CONSTRAINT "non_residential_properties_street_segements_fk" FOREIGN KEY (street_segment_id)       REFERENCES adaptable.street_segments (id); 
+alter table adaptable.streets_street_segments add  CONSTRAINT street_segment_sss_fk FOREIGN KEY (street_segment_id)         REFERENCES adaptable.street_segments (id);
+alter table adaptable.streets_street_segments add  CONSTRAINT streets_sss_fk FOREIGN KEY (street_id)         REFERENCES adaptable.streets (id);
+alter table adaptable.streets add  CONSTRAINT streets_town_fk FOREIGN KEY (town_id)   REFERENCES adaptable.town (id);
+alter table adaptable.town add   CONSTRAINT town_county_fk FOREIGN KEY (county_id)   REFERENCES adaptable.counties (id) ;
+
+
+-- UNIQUE CONSTRAINTS
+alter table adaptable.buildings add CONSTRAINT buildings_unique UNIQUE (location, year);
+alter table adaptable.counties add CONSTRAINT county_name_unique UNIQUE (name);
+alter table adaptable.non_residential_properties add CONSTRAINT name_location_year_unique UNIQUE (business_name, year, location);
+alter table adaptable.street_segments add CONSTRAINT street_segments_unique UNIQUE (location);
+alter table adaptable.streets add   CONSTRAINT streets_unique UNIQUE (name, year, town_id);
+alter table adaptable.town add CONSTRAINT town_unique UNIQUE (name, county_id);
+
+    
+-- CHECK CONSTRAINTS
+ALTER TABLE adaptable.streets ADD CONSTRAINT streets_year_check CHECK (year > 1870 and year < 2014);
+ALTER TABLE adaptable.non_residential_properties ADD CONSTRAINT streets_year_check CHECK (year > 1870 and year < 2014);
+ALTER TABLE adaptable."non_residential_properties" ADD CONSTRAINT category_check CHECK(category in ('Unknown','Medical/Pharmacy','Education','Retail','Third Sector','Third Space'));
+
+-------------------------------------
+-- INSERT DATA 
+-- run these queries separately
+------------------------------- 
+-- INSERTING DATA - NB:  remember the primary/foreign key relationships -> the primary key must exist before the record in the 'child' table is inserted
+-- also note in each case we are not manually adding the ID field as this is automatically determined by PostgreSQL
+
+insert into adaptable.counties(name, boundary) values ('Surrey',
+st_geomfromtext('POLYGON((480501.5 131048.4,480501.5 175767.7,543813.3 175767.7,543813.3 131048.4,480501.5 131048.4))',27700));
+
+
+-- get hold of the county id value to use in the foreign key for TOWNS
+select * from adaptable.counties;
+
+
+--- towns:
+
+insert into adaptable.town (name,town_centre_boundary,county_id)
+values
+('Surbiton',st_geomfromtext('POLYGON((547990.7988 148008.5799,518016.762 168015.0308,518087.2479 168007.082699999,518136.9442 167965.6786,518264.2102 167911.836999999,518227.3175 167822.0821,518193.2918 167806.717599999,518200.3811 167781.053200001,518192.9248 167672.525,518274.3095 167648.4899,518339.7314 167628.095100001,518379.2762 167607.0416,518431.0777 167620.116900001,518452.4066 167543.322899999,518478.5706 167265.517999999,518429.0464 167260.361500001,518337.7232 167270.994200001,518300.2855 167282.701300001,518248.597 167249.830600001,518159.5989 167105.511600001,518122.7234 167054.2327,518059.8108 167082.4178,517994.768 166961.4915,517935.4405 166916.662900001,517855.3491 167028.6713,517816.8365 167003.430299999,517784.5857 167051.559599999,517685.8585 166985.7785,517655.9437 167021.6799,517568.6639 167136.748,517432.4885 167290.993100001,517319.0556 167416.0352,517353.3324 167449.650599999,517453.6062 167559.4474,517555.5779 167728.165999999,517488.4705 167781.9365,517616.5658 167896.8577,517650.4687 167966.1856,517758.9488 167933.5699,517827.842 167902.6382,517861.6209 167887.8112,517894.1329 167872.8532,517929.9096 167852.3599,517937.8375 167879.270099999,517955.192 167918.326099999,517974.8141 167967.466800001,547990.7988 148008.5799))',27700),1);
+
+insert into adaptable.town (name,town_centre_boundary,county_id)
+values
+('South Norwood',st_geomfromtext('POLYGON((534069.5439 168626.339400001,534086.3664 168607.169600001,534103.9713 168631.034,534149.7439 168614.6028,534199.0376 168570.7862,534203.341 168570.395,534231.1176 168547.312999999,534242.463 168537.532500001,534254.982 168532.055500001,534291.3654 168528.534499999,534321.0981 168519.9277,534341.8327 168460.462300001,534349.7076 168456.123500001,534349.7076 168429.4934,534357.3847 168411.7399,534366.5014 168399.7444,534370.1 168387.988700001,534382.8153 168382.9506,534391.692 168374.3138,534402.2481 168361.3586,534346.9186 168314.5374,534364.9147 168292.2379,534359.8288 168288.3257,534374.3039 168271.8945,534379.3226 168254.4208,534409.3793 168226.692399999,534438.3777 168199.810699999,534464.6244 168169.753900001,534474.9961 168167.8489,534486.4261 168155.3606,534494.0461 168150.7039,534523.0445 168117.048800001,534565.1663 168066.6721,534561.4263 168032.4285,534568.9467 168008.793199999,534573.244 167996.975500001,534588.2847 167945.407500001,534591.5077 167923.204600001,534600.1024 167902.792199999,534607.9808 167859.102600001,534619.7985 167832.9605,534625.5283 167820.068499999,534619.7985 167815.7711,534531.345 167794.284399999,534479.7769 167827.5888,534456.1416 167922.8464,534442.5333 167971.9077,534421.021 167975.443499999,534410.6493 168009.3103,534392.6576 168027.725299999,534395.8326 168060.322000001,534349.9008 168101.808800001,534320.0558 168123.6105,534321.5375 168137.157199999,534292.9624 168157.900599999,534250.2056 168188.804,534202.1572 168228.5974,534182.0488 168208.0657,534164.9038 168189.862299999,534135.6937 168160.017200001,534105.002 168160.8639,534089.3387 168132.712200001,534008.4818 168161.7106,533982.2351 168171.8706,533974.5156 168187.9703,533961.0549 168193.037900001,533949.9695 168160.5737,533923.2064 168170.2338,533892.5052 168159.1633,533875.0855 168145.414899999,533855.5753 168163.8478,533820.1458 168180.8444,533781.363 168188.169,533743.6863 168183.3006,533741.358 168170.8123,533692.6745 168146.6822,533687.3829 168155.7839,533640.6044 168130.5955,533571.1776 168097.7871,533543.2376 168154.937200001,533523.0103 168180.7404,533539.4415 168194.8243,533556.264 168195.9979,533582.4757 168209.6906,533641.5498 168242.161800001,533669.7176 168262.114,533690.2771 168300.1425,533732.9827 168329.8127,533758.3828 168354.1545,533770.0267 168369.043,533734.1143 168397.26,533761.6899 168430.286599999,533803.374 168485.437899999,533827.1019 168467.481699999,533862.5888 168509.364700001,533865.7186 168528.534499999,533908.3615 168576.2633,533904.4493 168597.3891,533957.6552 168656.463300001,534033.5517 168652.942299999,534069.5439 168626.339400001))',27700),1);
+
+
+
+-- get hold of the town id for the streets
+select * from adaptable.town;
+
+
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'St Andrew Road',2012,'Ordnance Survey Mastermp');
+
+
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'Victoria Road',2012,'Ordnance Survey Mastermp');
+
+
+
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'St James Road',2012,'Ordnance Survey Mastermp');
+
+
+
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'Ravens Close',2012,'Ordnance Survey Mastermp');
+
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'Victoria Road',1956,'Ordnance Survey Historical Maps');
+
+
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'Victoria Road',1920,'Ordnance Survey Historical Maps');
+
+
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'Victoria Road',1880,'Ordnance Survey Historical Maps');
+
+
+-- test your knowledge of SQL
+-- what happens when you try to insert a street with year 2017?
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'Ravens Close',2017,'Ordnance Survey Mastermp');
+
+-- check what happens when you try to insert a street with the same name and town id and year- remember the constriant?
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'St James Road',2012,'Ordnance Survey Mastermp');
+
+
+-- check what happens when you try to insert a street with the same name and town id but a different year - remember the constriant?
+insert into adaptable.streets (town_id, name, year, source)
+values(1,'St James Road',1956,'Ordnance Survey Historical Maps');
+
+
+
+
+-- now find the appropriate street ids
+select * from adaptable.streets;
+
+--1;"St Andrew Road";1;2012;"Ordnance Survey Mastermp"
+--1;"Victoria Road";2;2012;"Ordnance Survey Mastermp"
+--1;"St James Road";3;2012;"Ordnance Survey Mastermp"
+--1;"Ravens Close";4;2012;"Ordnance Survey Mastermp"
+--1;"St James Road";7;1956;"Ordnance Survey Historical Maps"
+--1;"Victoria Road";8;1956;"Ordnance Survey Historical Maps"
+--1;"Victoria Road";11;1920;"Ordnance Survey Historical Maps"
+--1;"Victoria Road";10;1880;"Ordnance Survey Historical Maps"
+
+
+-- at this point we are leaving the length blank - we will use a spatial query to calculate this later on
+-- so we don't need to list the length column in the insert statement
+
+-- St Andrews Road
+insert into adaptable.street_segments( location) 
+values
+(st_geomfromtext('LINESTRING(517835 167335,517908 167263)',27700));
+
+insert into adaptable.street_segments(location) 
+values
+(st_geomfromtext('LINESTRING(517808 167361,517835 167335)',27700));
+
+insert into adaptable.street_segments( location) 
+values
+(st_geomfromtext('LINESTRING(517741.888 167424.352,517747.177 167421.449999999, 517773 167396,517808 167361)',27700));
+
+-- get hold of the ids so that we can populate the streets_street_segments table
+select * from adaptable.street_segments
+-- segments 1,2 3 are st andrews road
+insert into adaptable.streets_street_segments(street_id, street_segment_id)
+values
+(1,1);
+insert into adaptable.streets_street_segments(street_id, street_segment_id)
+values
+(1,2);
+insert into adaptable.streets_street_segments(street_id, street_segment_id)
+values
+(1,3);
+
+
+-- what happens when you try and re-insert the same segment
+insert into adaptable.street_segments(location) 
+values
+(st_geomfromtext('LINESTRING(517741.888 167424.352,517747.177 167421.449999999, 517773 167396,517808 167361)',27700));
+
+
+-- St James Road
+insert into adaptable.street_segments( location) 
+values
+(st_geomfromtext('LINESTRING(517879 167460,517902 167447)',27700));
+insert into adaptable.street_segments( location) 
+values
+(st_geomfromtext('LINESTRING(517865 167469,517879 167460)',27700));
+
+-- (nb - no streets_street_segment insert here - this road will then show up as having no segments)
+
+
+--  Victoria Road
+
+insert into adaptable.street_segments(location) 
+values
+(st_geomfromtext('LINESTRING(517908 167263,517918 167270, 518000 167326,518029 167346, 518030 167347)',27700));
+insert into adaptable.street_segments(location) 
+values
+(st_geomfromtext('LINESTRING(517857 167227,517879 167242,517899 167256,517908 167263)',27700));
+insert into adaptable.street_segments(location) 
+values
+(st_geomfromtext('LINESTRING(517747.498 167145.772,517756.782 167154.239,517777 167173,517817 167200,517857 167227)',27700));
+
+
+-- segment ids 6,7 and 8 are victoria road
+-- we have also got victoria road entries for all 4 eras with street ids with 2, 12 13 and 14
+
+insert into adaptable.streets_street_segments(street_id, street_segment_id)
+values
+(2,6),
+(2,7),
+(2,8);
+
+
+insert into adaptable.streets_street_segments(street_id, street_segment_id)
+values
+(11,6),
+(11,7),
+(11,8);
+
+insert into adaptable.streets_street_segments(street_id, street_segment_id)
+values
+(8,6),
+(8,7),
+(8,8);
+
+
+insert into adaptable.streets_street_segments(street_id, street_segment_id)
+values
+(11,6),
+(11,7),
+(11,8);
+
+
+-- RAVENS CLOSE
+
+insert into adaptable.street_segments(location) 
+values
+(st_geomfromtext('LINESTRING(517902 167447,517910 167459,517917 167469,517923 167474,517945 167488)',27700));
+
+select * from adaptable.street_segments;
+--  ravens close segment id is 10
+
+insert into adaptable.streets_street_segments(street_id, street_segment_id)
+values
+(4,10);
+
+
+
+-- add some buildings along a segment of Victoria Road
+-- leave the street_segment_id blank as we can populate this with a buffer query later on
+-- NB: in this case, we can still include the street_segment_id in the field list but just not put any values - note the commas
+-- note also how instead of having multiple 'insert into' statements, we can use a list with one insert statement
+-- we also leave area blank as we will calculate this later using a spatial query
+-- at this point, therefore, use NULL - which means 'we dont know if there is a value, or if so what this value is
+insert into adaptable.buildings(location,year, source, street_segment_id, area)             
+values
+(st_geomfromtext('POLYGON((517973.25 167262.1,517963.7 167255.5,517963.25 167256.050000001,517959.9 167260.550000001,517955.75 167266.199999999,517956.2 167266.5,517952.6 167271.4,517953 167271.699999999,517951.2 167273.949999999,517946.3 167280.1,517955.25 167286.1,517963 167275.800000001,517964.4 167273.85,517973.25 167262.1))',27700),2012,'Ordnance Survey Mastermap',null,null),
+(st_geomfromtext('POLYGON((517948.5 167272,517943.8 167278.4,517943.95 167278.5,517946.3 167280.1,517951.2 167273.949999999,517948.5 167272))',27700),2012,'Ordnance Survey Mastermap',null,null),
+(st_geomfromtext('POLYGON((517943.8 167278.4,517948.5 167272,517954 167264.449999999,517952.8 167263.5,517954.95 167260.699999999,517951.8 167258.699999999,517947.6 167264.25,517939.15 167275.25,517943.8 167278.4))',27700),2012,'Ordnance Survey Mastermap',null,null),
+(st_geomfromtext('POLYGON((517934.7 167272.25,517939.15 167275.25,517947.6 167264.25,517946.6 167263.550000001,517945.8 167264.449999999,517944.6 167263.6,517945.6 167262.15,517944.3 167261.25,517943.55 167260.699999999,517943.3 167261.050000001,517943.2 167261.15,517934.7 167272.25))',27700),2012,'Ordnance Survey Mastermap',null,null),
+(st_geomfromtext('POLYGON((517929.9 167269,517934.7 167272.25,517943.2 167261.15,517943.3 167261.050000001,517940.55 167259.1,517939.05 167258.050000001,517938.45 167257.65,517929.9 167269))',27700),2012,'Ordnance Survey Mastermap',null,null),
+(st_geomfromtext('POLYGON((517925.8 167266.25,517927.7 167267.5,517929.9 167269,517938.45 167257.65,517936.3 167256.15,517934.35 167254.75,517925.8 167266.25))',27700),2012,'Ordnance Survey Mastermap',null,null),
+(st_geomfromtext('POLYGON((517934.35 167254.75,517930.15 167251.800000001,517929 167253.449999999,517927.2 167252.199999999,517919.6 167262,517925.8 167266.25,517934.35 167254.75))',27700),2012,'Ordnance Survey Mastermap',null,null);
+
+
+
+
+
+-- NB:  in this case we leave the 'building id' field blank (and we haven't yet applied the constraint).  Later, we will find out how to automatically
+-- populate the building_id by running a spatial query.  In this case, we simply don't include building_id in the field list - it will automatically 
+-- be left blank.  Similarly, the street_segment_id should be left blank as we can derive this once we have this information for the building
+-- so we don't include it in the list
+insert into adaptable."non_residential_properties"(business_name, year,source,location, category)
+values
+('Contractors',1956,'Business Directory',st_geomfromtext('POINT(517925.1823 167264.066199999)',27700),'Unknown'),
+('Lewis Chiropodost',1956,'Business Directory',st_geomfromtext('POINT(517925.1823 167264.066199999)',27700),'Medical/Pharmacy'),
+('Maysie Ltd',1956,'Business Directory',st_geomfromtext('POINT(517934.8344 167269.2732)',27700),'Unknown'),
+('Optician',1956,'Business Directory',st_geomfromtext('POINT(517934.8344 167269.2732)',27700),'Medical/Pharmacy'),
+('Hairdressers',1956,'Business Directory',st_geomfromtext('POINT(517934.8344 167269.2732)',27700),'Retail'),
+('Bootmakers',1956,'Business Directory',st_geomfromtext('POINT(517937.8824 167272.4483)',27700),'Retail');
+
+
+
+
+
+
+
+----------------------------
+----------------------------
+-- ======================== UPDATE AND DELETE STATEMENTS ====================== */
+
+-- change the incorrect spelling of Mastermap for ALL records
+-- note:  it is not possible to change only PART of a field - you need to replace the contents of the whole field.
+update adaptable.streets set source = 'Ordnance Survey Mastermap';
+
+update adaptable.streets set source = 'Ordnance Survey Mastermap' where name like '%Andrew%';
+
+
+-- update multiple columns
+update adaptable.streets set name = 'St AndrewsRoad', year = '2001', source='Unknown Directory' where id = 1;
+
+ 
+
+-- change the spelling of ALL INSTANCES of st andrews road
+update adaptable.streets set name = 'St Andrews Roadx' where name = 'St Andrew Road';
+
+-- alternatively, find the ID value to make sure we only change that one - use the town id for Surbiton
+select * from adaptable.streets where name = 'St Andrews Roadx' and town_id = 1 ;
+
+update adaptable.streets set name = 'St Andrews Road' where id = 1;
+
+-- alternatively, use a sub query 
+update adaptable.streets set name = 'St. Andrews Road' where name ='St Andrews Road' and town_id = (select id from adaptable.town where name = 'Surbiton');
+
+-- we don't have any data for South Norwood so delete the boundary
+delete from adaptable.town where name = 'South Norwood';
+
+-- change the geometry of the Surbiton Boundary
+update adaptable.town set town_centre_boundary = st_geomfromtext('POLYGON((517990.7988 168008.5799,518016.762 168015.0308,518087.2479 168007.082699999,518136.9442 167965.6786,518264.2102 167911.836999999,518227.3175 167822.0821,518193.2918 167806.717599999,518200.3811 167781.053200001,518192.9248 167672.525,518274.3095 167648.4899,518339.7314 167628.095100001,518379.2762 167607.0416,518431.0777 167620.116900001,518452.4066 167543.322899999,518478.5706 167265.517999999,518429.0464 167260.361500001,518337.7232 167270.994200001,518300.2855 167282.701300001,518248.597 167249.830600001,518159.5989 167105.511600001,518122.7234 167054.2327,518059.8108 167082.4178,517994.768 166961.4915,517935.4405 166916.662900001,517855.3491 167028.6713,517816.8365 167003.430299999,517784.5857 167051.559599999,517685.8585 166985.7785,517655.9437 167021.6799,517568.6639 167136.748,517432.4885 167290.993100001,517319.0556 167416.0352,517353.3324 167449.650599999,517453.6062 167559.4474,517555.5779 167728.165999999,517488.4705 167781.9365,517616.5658 167896.8577,517650.4687 167966.1856,517758.9488 167933.5699,517827.842 167902.6382,517861.6209 167887.8112,517894.1329 167872.8532,517929.9096 167852.3599,517937.8375 167879.270099999,517955.192 167918.326099999,517974.8141 167967.466800001,517990.7988 168008.5799))',27700)
+where name = 'Surbiton';
+
+-- update the length of each street segment (we will look at more spatial data queries later on)
+-- note this will update all the records
+-- we can also use a trigger so that every time a record changes the length is automatically updated
+update adaptable.street_segments set length = st_length(location);
+
+
+CREATE OR REPLACE FUNCTION adaptable.update_length() RETURNS trigger AS 
+$BODY$
+	DECLARE
+	originallength double precision;
+     BEGIN
+	select st_length(location) into originallength from adaptable.street_segments where id=NEW.id;
+	raise notice 'Original Length: %', originallength 
+	raise notice 'New Length: %', NEW.length;
+
+	IF NEW.length <> originallength THEN
+	        UPDATE adaptable.street_segments set length = st_length(location) where id = NEW.id;
+	end if;
+
+        RETURN NULL;
+     END;
+$BODY$ LANGUAGE 'plpgsql';
+
+DROP TRIGGER street_segments_length_update on adaptable.street_segments;
+CREATE TRIGGER street_segments_length_update
+    AFTER INSERT OR UPDATE ON adaptable.street_segments
+    FOR EACH ROW
+    EXECUTE PROCEDURE adaptable.update_length();
+
+
+====
+
+TEST THE TRIGGER BY CHANGING SOME VALUES
+
+"LINESTRING(517902 167447,517910 167459,517917 167469,517923 167474,517945 167488)"
+
+update adaptable.street_segments
+set location = st_geomfromtext('LINESTRING(517929 167263,517918 167270, 
+518000 167326,518029 167346, 518030 167347)',27700))  where id = 10;
+
+
+----------------------------
+----------------------------
+-- EXAMPLE QUERIES - NON SPATIAL
+----------------------------
+----------------------------
+
+
+-- ======================== SIMPLE SELECT STATEMENTS ====================== */
+SELECT * FROM adaptable.streets;
+
+SELECT * FROM adaptable.streets WHERE name = 'Victoria Road';
+SELECT * FROM adaptable.streets WHERE name LIKE '%Road%';
+SELECT * FROM adaptable.streets WHERE name like '%road%';
+
+SELECT name, town_id from adaptable.streets;
+
+SELECT COUNT(*)  FROM adaptable.buildings;
+
+
+-- SUB QUERIES */
+-- NB - in this case you can only select columns from the main table - compare this to join queries later on
+-- find the list of segment ids that make up Victoria Road
+SELECT * FROM adaptable.streets_street_segments
+WHERE street_id IN
+(SELECT id 
+FROM adaptable.streets 
+WHERE name = 'Victoria Road');
+
+-- and now find the actual segments - two sub queries
+select * from adaptable.street_segments
+where id in
+(select street_segment_id from adaptable.streets_street_segments
+where street_id in 
+(SELECT id 
+FROM adaptable.streets 
+WHERE name = 'Victoria Road'));
+
+
+
+-- make sure we have 'Victoria Road' from all four eras
+select distinct(year) from adaptable.streets where name = 'Victoria Road';
+
+-- find the longest street segment and the shortest and the average length
+select max(length) from adaptable.street_segments;
+
+select min(length) from adaptable.street_segments;
+
+select avg(length) from adaptable.street_segments;
+
+
+-- and now the same for streets only on victoria road
+SELECT max(length) FROM adaptable.street_segments
+where id in
+(select street_segment_id from adaptable.streets_street_segments
+where street_id in 
+(SELECT id 
+FROM adaptable.streets 
+WHERE name = 'Victoria Road'));
+
+
+SELECT min(length) FROM adaptable.street_segments
+where id in
+(select street_segment_id from adaptable.streets_street_segments
+where street_id in 
+(SELECT id 
+FROM adaptable.streets 
+WHERE name = 'Victoria Road'));
+
+
+SELECT avg(length) FROM adaptable.street_segments
+where id in
+(select street_segment_id from adaptable.streets_street_segments
+WHERE street_id IN
+(SELECT id 
+FROM adaptable.streets 
+WHERE name = 'Victoria Road'));
+
+-- what is the total length of streets?
+	
+
+-- list all the businesses in alphabetical order
+select * from adaptable."non_residential_properties" order by business_name; 
+
+-- and in reverse alphabetical order
+select * from adaptable."non_residential_properties" order by business_name desc;
+
+-- make sure we have 'Victoria Street' from all four eras 
+select distinct(year) from adaptable.streets where name = 'Victoria Street';
+
+
+-- how many of each class of point do we have?
+	select count(*), category from adaptable.non_residential_properties 
+	group by category;
+
+-- and now sort them in alphabetical order
+select count(*), category from adaptable.non_residential_properties 
+group by category
+order by category;
+
+
+
+-- and the total lenght of victoria road?
+SELECT sum(length) FROM adaptable.street_segments
+where id in
+(select street_segment_id from adaptable.streets_street_segments
+where street_id in 
+(SELECT id 
+FROM adaptable.streets 
+WHERE name = 'Victoria Road'));
+
+
+-- the sub queries give a very basic way of combining information from more than one table, which is the main strength of a relational database
+-- however, we can only list columns from the OUTER/TOP table in the results
+
+
+-- so if we want to know the name of the street which contains the longest segment this is difficut to do as the lenght is in the street_segments table and 
+-- the name is in the streets table
+-- we could do multiple queires to fidnd out but this would take ages on a real world large dataset
+-- so we use JOIN queries instead
+
+
+
+-- so we need to find this out from the streets table
+-- using the sub query above, we could only list columns from the main table
+-- but using a JOIN we can list columns from two or more tables and create a new table combining these into one
+
+
+-- CARTESIAN PRODUCT
+-- gives all possible combinations - * means 'all columns'
+select a.*,b.*
+from adaptable.streets a, adaptable.streets_street_segments b;
+
+
+-- union operator - creates a single list 
+-- list all the streets and towns
+select name from adaptable.streets
+union all
+select name from adaptable.town;
+
+
+
+-- INTERSECTION OPERATOR */
+-- find out the range of years of data that is available for points, buildings and streets
+select year from adaptable."non_residential_properties"
+intersect
+select year from adaptable."buildings"
+intersect
+select year from adaptable."streets";
+
+-- what about just buildings and streets?
+select year from adaptable."buildings"
+intersect
+select year from adaptable."streets";
+
+
+
+-- insert some points for 2012 property
+
+insert into adaptable."non_residential_properties"(business_name, year,source,location, category)
+values
+('Oxfam',2012,'On-site survey',st_geomfromtext('POINT(517925.1823 167264.066199999)',27700),'Third Sector'),
+('Victoria Medical Centre',2012,'On-site survey',st_geomfromtext('POINT(517925.1823 167264.066199999)',27700),'Medical/Pharmacy'),
+('Sainsburys',2012,'On-site survey',st_geomfromtext('POINT(517934.8344 167269.2732)',27700),'Retail'),
+('Optician',2012,'On-site survey',st_geomfromtext('POINT(517934.8344 167269.2732)',27700),'Medical/Pharmacy');
+
+
+
+
+-- re-run the query
+select year from adaptable.non_residential_properties
+intersect       
+select year from adaptable.buildings
+intersect
+select year from adaptable.streets;
+
+
+-- DIFFERENCE OPERATOR */
+-- find out where data is available for points where we don't have corresponding buildings
+select year from adaptable.non_residential_properties 
+except (select year from adaptable.buildings);
+
+-- INNER JOIN */
+
+-- find out the ids of the segments on each road
+select b.street_segment_id, a.name
+from adaptable.streets_street_segments b INNER JOIN adaptable.streets a
+on a.id = b.street_id;
+
+-- RIGHT JOIN */
+-- find out which streets don't have any segments
+select b.street_segment_id, a.name, a.year
+from adaptable.streets_street_segments b RIGHT JOIN adaptable.streets a
+on a.id = b.street_id;
+
+
+-- INNER JOIN */
+
+-- add a third table to find out the lengths of the segments
+select b.street_segment_id, a.name, a.year, c.length
+from adaptable.streets a INNER JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id INNER JOIN adaptable.street_segments c on b.street_segment_id = c.id;
+
+
+-- INNER JOIN */
+
+-- and now sum the lengths, grouping by the street name to find the lenght of each street
+-- note that the sub query must have an alias here as it is made up of multiple tables
+select sum(d.length), d.name
+from
+(
+select b.street_segment_id, a.name, a.year, c.length
+from adaptable.streets a INNER JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id INNER JOIN adaptable.street_segments c on b.street_segment_id = c.id
+) d
+group by d.name;
+
+-- LEFT JOIN */
+-- find out which streets don't have any segments
+select b.street_segment_id, a.name, a.year, c.length
+from adaptable.streets a LEFT JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id LEFT JOIN adaptable.street_segments c on b.street_segment_id = c.id;
+
+-- RIGHT JOIN */
+-- find out which segments don't have any streets
+-- note that in this case, we want the c.id column as we want to know the segment id.  we use an 'alias' to give the column a useful name
+select c.id as segment_id, a.name, a.year, c.length
+from adaptable.streets a  RIGHT JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id  RIGHT JOIN adaptable.street_segments c on b.street_segment_id = c.id;
+
+-- FULL OUTER JOIN */
+-- answer both questions at once
+-- find out which segments don't have any streets
+-- note that in this case, we want the c.id column as we want to know the segment id.  we use an 'alias' to give the column a useful name
+select c.id as segment_id, a.name, a.year, c.length
+from adaptable.streets a  FULL OUTER JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id  FULL OUTER JOIN adaptable.street_segments c on b.street_segment_id = c.id;
+
+
+
+-- make sure we have 'Victoria Street' from all four eras and that we have segments
+select distinct e.year from (select b.street_segment_id, a.name, a.year, c.length
+from adaptable.streets a LEFT JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id LEFT JOIN adaptable.street_segments c on b.street_segment_id = c.id
+where a.name = 'Victoria Road') e;
+
+-- repeat the query for St Andrews Road
+select distinct e.year from (select b.street_segment_id, a.name, a.year, c.length
+from adaptable.streets a LEFT JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id LEFT JOIN adaptable.street_segments c on b.street_segment_id = c.id
+where a.name = 'St Andrew Road') e;
+
+-- find out the segments for Victoria road that have remained unchanged between 1956 and 2012
+select b.street_segment_id, a.name
+from adaptable.streets a LEFT JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id LEFT JOIN adaptable.street_segments c on b.street_segment_id = c.id
+where a.year = 2012 and a.name = 'Victoria Road'
+INTERSECT
+select b.street_segment_id, a.name
+from adaptable.streets a LEFT JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id LEFT JOIN adaptable.street_segments c on b.street_segment_id = c.id
+where a.year = 1956 and a.name = 'Victoria Road';
+
+-- list the county, town, street and segments
+select *
+from adaptable.counties d INNER JOIN adaptable.town e ON d.id = e.county_id INNER JOIN adaptable.streets a ON e.id = a.town_id INNER JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id INNER JOIN adaptable.street_segments c on b.street_segment_id = c.id;
+
+-- calculate the total length of streets in a county
+select sum(f.length) from 
+(select *
+from adaptable.counties d INNER JOIN adaptable.town e ON d.id = e.county_id INNER JOIN adaptable.streets a ON e.id = a.town_id INNER JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id INNER JOIN adaptable.street_segments c on b.street_segment_id = c.id) f;
+
+
+
+-- things to think about
+-- how would you use SQL to update the building_id for the points and the street_segment_id for the buildings and points?
+
+-------------------------------------
+--- EXAMPLE QUERIES - SPATIAL
+-------------------------------------
+
+--- ============================================================================
+
+/-- ========================== SPATIAL QUERIES  =========
+-- update the length and area columns of the buildings and street segments
+-- NB:  ideally you would not store these values in columns, but would calculate them as you need them.  See the last example in this document for both approaches.
+update adaptable.street_segments set length = st_length(location);
+update adaptable.buildings set area = st_area(location);
+
+
+
+-- update the non residential properties with the building ID of the building boundary that contains them
+update adaptable.non_residential_properties a set building_id = (select id from adaptable.buildings b where st_contains(b.location, a.location));
+
+
+
+
+-- find the distances from all the street segments to all the buildings
+select st_distance(b.location, s.location) as distance, b.id as building_id, s.id as street_segment_id
+from adaptable.buildings b, adaptable.street_segments s;
+
+-- use the DISTINCT command to only take the minimum distance
+-- the DISTINCT command will take the first occurance of each building, so we need the ORDER BY to ensure that the distance is the smallest one
+select distinct on (b.id) b.id as building_id, st_distance(b.location, s.location) as distance,  s.id as street_segment_id
+from adaptable.buildings b, adaptable.street_segments s
+order by b.id, st_distance(b.location, s.location);
+
+
+-- do the same for the points
+select distinct on (b.id) b.id as non_residential_id, st_distance(b.location, s.location) as distance,  s.id as street_segment_id
+from adaptable.non_residential_properties b, adaptable.street_segments s
+order by b.id, st_distance(b.location, s.location);
+
+
+-- now do the updates
+update adaptable.buildings d set street_segment_id = (select c.street_segment_id from 
+(select distinct on (b.id) b.id as building_id, st_distance(b.location, s.location) as distance,  s.id as street_segment_id
+from adaptable.buildings b, adaptable.street_segments s
+order by b.id, st_distance(b.location, s.location)) c 
+where c.building_id = d.id);
+
+
+update adaptable.non_residential_properties d set street_segment_id = (select c.street_segment_id from 
+(select distinct on (b.id) b.id as non_residential_id, st_distance(b.location, s.location) as distance,  s.id as street_segment_id
+from adaptable.non_residential_properties b, adaptable.street_segments s
+order by b.id, st_distance(b.location, s.location)) c 
+where c.non_residential_id = d.id);
+
+
+
+-- find out the segments in a county
+select *
+from adaptable.counties d INNER JOIN adaptable.town e ON d.id = e.county_id INNER JOIN adaptable.streets a ON e.id = a.town_id INNER JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id INNER JOIN adaptable.street_segments c on b.street_segment_id = c.id;
+
+--  now show how to do this spatially
+select * from adaptable.street_segments a,adaptable.counties b where st_contains(b.boundary,a.location);
+
+
+
+-- find out length of segments in a county
+select sum(f.length) from 
+(select *
+from adaptable.counties d INNER JOIN adaptable.town e ON d.id = e.county_id INNER JOIN adaptable.streets a ON e.id = a.town_id INNER JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id INNER JOIN adaptable.street_segments c on b.street_segment_id = c.id) f;
+
+-- now do this spatially, using a nested query  - firstly using the pre-calculated length column
+select sum(c.length) from (select * from adaptable.street_segments a,adaptable.counties b where st_contains(b.boundary,a.location) )c;
+
+-- and secondly calculating the length on the fly
+select sum(st_length(c.location))  from (select * from adaptable.street_segments a,adaptable.counties b where st_contains(b.boundary,a.location) )c;
+
+
+
+-------------------------------------------------
+-------------------------------------------------
+-------------------------------------
+--- FUNCTIONAL REQUIREMENTS
+-------------------------------------
+
+
+-- 1.  How many business points are within the boundary of each suburban town centre?
+
+select count(*) from adaptable.non_residential_properties
+where st_within(location, (select b.town_centre_boundary from adaptable.town b where b.name = 'Surbiton') )
+
+-- 2.  How many business points are there in each category?
+
+select count(*), category from adaptable.non_residential_properties
+where st_within(location, (select b.town_centre_boundary from adaptable.town b where b.name = 'Surbiton') )
+group by category
+
+-- 3.  How many business points are there for each street segment?
+
+-- first make sure that the street segment IDs are updated
+update adaptable.non_residential_properties d set street_segment_id = (select c.street_segment_id from 
+(select distinct on (b.id) b.id as non_residential_id, st_distance(b.location, s.location) as distance,  s.id as street_segment_id
+from adaptable.non_residential_properties b, adaptable.street_segments s
+order by b.id, st_distance(b.location, s.location)) c 
+where c.non_residential_id = d.id);
+
+
+-- then run the query
+select street_segment_id, count(*) 
+from adaptable.non_residential_properties
+group by street_segment_id;
+
+
+
+-- 4.  How many business points are there along each street?
+-- create a query that lists all the business points on a street
+
+select a.name, b.street_id, b.street_segment_id, c.business_name, c.year
+from adaptable.streets a inner join 
+adaptable.streets_street_segments b on a.id = b.street_id
+inner join 
+adaptable.non_residential_properties c on
+b.street_segment_id = c.street_segment_id
+
+-- now build on that query using a group by
+select d.name, d.year, count(*) as num_businesses
+from (select a.name, b.street_id, b.street_segment_id, c.business_name, c.year
+from adaptable.streets a inner join 
+adaptable.streets_street_segments b on a.id = b.street_id
+inner join 
+adaptable.non_residential_properties c on
+b.street_segment_id = c.street_segment_id) d
+group by d.name, d.year;
+
+
+-- 5.  What is the total area of buildings in each category?
+-- first list all the non-residential-properties in each building
+
+select a.id, b.category, a.location
+from adaptable.buildings a, adaptable.non_residential_properties b
+where st_contains(a.location, b.location)
+
+-- now use sum and group by to calculate the area
+select sum(st_area(d.location)), d.category
+from (
+select a.id, b.category, a.location
+from adaptable.buildings a, adaptable.non_residential_properties b
+where st_contains(a.location, b.location)) d group by d.category;
+
+
+
+-- 6.  What is the total area of buildings along each street segment?
+
+-- first find the street segments for each building
+select distinct on (b.id) b.id as building_id, st_distance(b.location, s.location) as distance,  s.id as street_segment_id,b.location
+from adaptable.buildings b, adaptable.street_segments s
+order by b.id, st_distance(b.location, s.location);
+
+-- now group by street segement and sum the area
+select sum(st_area(d.location)), d.street_segment_id
+from (select distinct on (b.id) b.id as building_id, st_distance(b.location, s.location) as distance,  
+    s.id as street_segment_id,b.location
+from adaptable.buildings b, adaptable.street_segments s
+order by b.id, st_distance(b.location, s.location)) d
+group by d.street_segment_id;
+
+
+
+
+-- 7.  Are there any streets that don’t have segments?
+select b.street_segment_id, a.name, a.year, c.length
+from adaptable.streets a LEFT JOIN  adaptable.streets_street_segments b
+on a.id = b.street_id LEFT JOIN adaptable.street_segments c on b.street_segment_id = c.id;
